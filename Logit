@@ -1,0 +1,193 @@
+adult_sal <- read.csv("C:/Users/vjovanovic/Desktop/R Udemy/R-Course-HTML-Notes/R-Course-HTML-Notes/R-for-Data-Science-and-Machine-Learning/Training Exercises/Machine Learning Projects/CSV files for ML Projects/adult_sal.csv")
+View(adult_sal)
+
+adult <- adult_sal
+
+head(adult)
+str(adult)
+
+#?i??enje podataka
+
+library(Amelia)
+
+library(dplyr)
+adult <- select(adult,-X)
+str(adult)
+head(adult)
+
+#organising type of employer in less factors
+
+table(adult$type_employer)
+
+adult$type_employer <- as.character(adult$type_employer)
+
+unemp <- function(job){
+  job <- as.character(job)
+  if(job=='Never-worked'| job=='Without-pay'){
+    return('Unemployed')
+  }else{
+    return(job)
+  }
+}
+
+adult$type_employer <- sapply(adult$type_employer, unemp)
+table(adult$type_employer)
+
+str(adult)
+
+group_emp <- function(job){
+  if (job=='Local-gov' | job=='State-gov'){
+    return('SL-gov')
+  }else if (job=='Self-emp-inc' | job=='Self-emp-not-inc'){
+    return('self-emp')
+  }else{
+    return(job)
+  }
+}
+
+adult$type_employer <- sapply(adult$type_employer, group_emp)
+
+
+table(adult$type_employer)
+
+adult$type_employer <- as.factor(adult$type_employer)
+
+str(adult)
+
+#organising type of marital in less factors
+
+table(adult$marital)
+
+group_marital <- function(mar){
+  mar <- as.character(mar)
+  
+  # Not-Married
+  if (mar=='Separated' | mar=='Divorced' | mar=='Widowed'){
+    return('Not-Married')
+    
+    # Never-Married   
+  }else if(mar=='Never-married'){
+    return(mar)
+    
+    #Married
+  }else{
+    return('Married')
+  }
+}
+
+adult$marital <- sapply(adult$marital, group_marital)
+table(adult$marital)
+str(adult)
+
+adult$marital <- as.factor(adult$marital)
+str(adult)
+
+#organising countries into continents
+
+Asia <- c('China','Hong','India','Iran','Cambodia','Japan', 'Laos' ,
+          'Philippines' ,'Vietnam' ,'Taiwan', 'Thailand')
+
+North.America <- c('Canada','United-States','Puerto-Rico' )
+
+Europe <- c('England' ,'France', 'Germany' ,'Greece','Holand-Netherlands','Hungary',
+            'Ireland','Italy','Poland','Portugal','Scotland','Yugoslavia')
+
+Latin.and.South.America <- c('Columbia','Cuba','Dominican-Republic','Ecuador',
+                             'El-Salvador','Guatemala','Haiti','Honduras',
+                             'Mexico','Nicaragua','Outlying-US(Guam-USVI-etc)','Peru',
+                             'Jamaica','Trinadad&Tobago')
+Other <- c('South')
+
+group_country <- function(ctry){
+  if (ctry %in% Asia){
+    return('Asia')
+  }else if (ctry %in% North.America){
+    return('North.America')
+  }else if (ctry %in% Europe){
+    return('Europe')
+  }else if (ctry %in% Latin.and.South.America){
+    return('Latin.and.South.America')
+  }else{
+    return('Other')      
+  }
+}
+
+
+adult$country <- sapply(adult$country,group_country)
+table(adult$country)
+
+str(adult)
+adult$country <- factor(adult$country)
+str(adult)
+
+#Deal with missing data
+
+install.packages("Amelia")
+library(Amelia)
+
+#changing ? into missing value
+adult[adult == '?'] <- NA
+
+missmap(adult)
+missmap(adult,y.at=c(1),y.labels = c(''),col=c('yellow','black'))
+
+#ne koristi ispitanike koji imaju nedostajućih podataka
+adult <- na.omit(adult)
+missmap(adult,y.at=c(1),y.labels = c(''),col=c('yellow','black'))
+
+#exploring the data
+
+library(ggplot2)
+ggplot(adult, aes(x=age)) + geom_histogram (aes(fill=income), color="black", binwidth = 1) + theme_bw()
+
+ggplot(adult, aes(x=hr_per_week)) + geom_histogram (aes(fill=income), color="black", binwidth = 5) + theme_bw()
+
+ggplot(adult, aes(x=country)) + stat_count(aes(fill=income), color="black", binwidth = 5, position = "dodge") + theme_bw()
+
+#creating training and test subset
+
+install.packages("caTools")
+library(caTools)
+set.seed(101)
+
+split = sample.split(adult$income, SplitRatio = 0.70)
+
+final.train = subset(adult, split == TRUE)
+final.test = subset(adult, split == FALSE)
+
+summary(final.train)
+summary(final.test)
+
+#logit model with all predictor
+
+logit <- glm(formula = income ~ ., family = binomial(logit), data = adult)
+summary(logit)
+
+#stepwise model koji ubacije prediktor po prediktor i računa AIC za svakog od njih
+logit1 <- step(logit)
+summary(logit1)
+
+#eksponenciranje svakog regresionog koeficijenta, odnosno zaključivanje koliko se promeni količnik šanse
+#ishoda kada se promeni prediktor za jednu jedinicu a svi ostali se drže konstantnim KŠ=Š(x+1)/Š(x)
+#za kategoričke prediktore ovo znači direktnu promenu šanse za svaku kategoriju prediktora
+#verovatnoća = proporcija entiteta u jednoj kategoriji
+#šansa = p/(1-5); za p=0,5 šansa je 1
+#količnih šansi Š1/Š2; ako je količnik šanse za prediktor (exp(b)=2) to znači da ako se prediktor poveća
+#za 1 šanse da kriterijum promeni vrednost rastu dva puta
+
+#pravljenje količnika šansi (OR, odds ratio) (exp (b))
+exp(cbind(OR = coef(logit), confint(logit)))
+
+#pravljenje confision matrice
+
+test.predicted.income = predict(logit, newdata = final.test, type = "response" )
+table(final.test$income, test.predicted.income > 0.5)
+
+#accuracy rate - ta?nost modela, koliko model uop?te ta?no poga?a (1-(la?no negativni + la?no pozitivni))
+(531+890)/(6389+890+531+1405)
+1-0.1542
+#koliko model uspe?no prepoznaje negativne (la?no negativni kroz ukupne negativne) - precision
+6389/(6389+531)
+
+#koliko model uspe?no prepoznaje pozitivne (stvarni pozitivni kroz ukupne pozitivne uklju?ujuci i la?no pozitivne) - recall
+1405/(1405+531)
